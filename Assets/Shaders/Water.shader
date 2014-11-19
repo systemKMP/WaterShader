@@ -9,10 +9,11 @@
 	  _NormalMapB ("Normal map B", 2D) = "bump" {}
 	  _FlowSpeedB ("Flow Speed B", float) = 1.0
 	  _InvertSpeedB ("Invert Speed B", float) = 1.0
-	  _WaveDirections ("4 Wave Directions", Vector) = (1,1,1,1)
-	  _WaveAmplitudes ("4 Wave amplitude", Vector) = (1,1,1,1)
-	  _WaveSpeeds ("4 Wave speeds", Vector) = (1,1,1,1)
-	  _WaveFreqs ("4 Wave frequencies", Vector) = (1,1,1,1)
+	  _WaveDirections ("4 Wave Directions (range: 0 - 2*pi)", Vector) = (1,1,1,1)
+	  _WaveAmplitudes ("4 Wave Amplitude (range: 0 - 1)", Vector) = (1,1,1,1)
+	  _WaveAmplitudeMultiplier ("Amplitude multiplier (range: 0 - 4)", float) = 1.0
+	  _WaveSpeeds ("4 Wave Speeds", Vector) = (1,1,1,1)
+	  _WaveFreqs ("4 Wave Frequencies", Vector) = (1,1,1,1)
    }
    SubShader {
       Pass {	
@@ -36,6 +37,7 @@
          uniform float _Shininess;
 		 uniform float4 _WaveDirections;
 		 uniform float4 _WaveAmplitudes;
+		 uniform float _WaveAmplitudeMultiplier;
 		 uniform float4 _WaveSpeeds;
 		 uniform float4 _WaveFreqs;
 
@@ -72,6 +74,11 @@
             
             output.posWorld = mul(_Object2World, input.vertex);
             
+			// Clamp input values to avoid extreem values
+			_WaveDirections = fmod(_WaveDirections, 2*3.14159);
+			_WaveAmplitudes = clamp(_WaveAmplitudes, 0, 1);
+			_WaveAmplitudeMultiplier = clamp(_WaveAmplitudeMultiplier, 0, 4);
+			
             float4 workaround_cos_waveAlternatorPredef = cos(_WaveDirections);
             float4 workaround_sin_waveAlternatorPredef = sin(_WaveDirections);
             float4x2 waveDirections = float4x2(workaround_cos_waveAlternatorPredef, workaround_sin_waveAlternatorPredef);
@@ -86,9 +93,9 @@
 			float4 waveTime = _Time.w * _WaveSpeeds;
 			float2 direction = normalize(float2(1,1));
 			
-			float4 heightVec = _WaveAmplitudes * sin(waveDirDotPos * _WaveFreqs + waveTime);
-			float4 dXVec = _WaveFreqs * waveDirectionsTranspose[0] * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
-			float4 dZVec = _WaveFreqs * waveDirectionsTranspose[1] * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+			float4 heightVec = _WaveAmplitudeMultiplier * _WaveAmplitudes * sin(waveDirDotPos * _WaveFreqs + waveTime);
+			float4 dXVec = _WaveFreqs * waveDirectionsTranspose[0] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+			float4 dZVec = _WaveFreqs * waveDirectionsTranspose[1] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
 			
 			float height = heightVec.x + heightVec.y + heightVec.z + heightVec.w;
 			float dX = dXVec.x + dXVec.y + dXVec.z + dXVec.w;
@@ -101,7 +108,7 @@
 			
 			output.normalDir = newNormal;
 			output.tangentDir = normalize(float3(0, dZ, 1));
-			output.binormalDir = normalize(float3(0, dX, 1));
+			output.binormalDir = normalize(float3(1, dX, 0));
 			
             output.tex = input.texcoord;
             
