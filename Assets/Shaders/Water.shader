@@ -3,16 +3,21 @@
       _Color ("Diffuse Material Color", Color) = (1,1,1,1) 
       _SpecColor ("Specular Material Color", Color) = (1,1,1,1) 
       _Shininess ("Shininess", Float) = 10
+	  _MainTex ("Water texture", 2D) = "black" {}
+	  _BubbleTex ("Bubble texture", 2D) = "black" {}
+	  _BubbleMinIntes ("bubble min alt", float) = 1.0
+	  _BubbleMaxIntes ("bubble max alt", float) = 2.0
 	  _NormalMapA ("Normal map A", 2D) = "bump" {}
 	  _FlowSpeedA ("Flow Speed A", float) = 1.0
 	  _InvertSpeedA ("Invert Speed A", float) = 1.0
 	  _NormalMapB ("Normal map B", 2D) = "bump" {}
 	  _FlowSpeedB ("Flow Speed B", float) = 1.0
-	  _InvertSpeedB ("Invert Speed B", float) = 1.0
-	  _WaveDirections ("4 Wave Directions", Vector) = (1,1,1,1)
-	  _WaveAmplitudes ("4 Wave amplitude", Vector) = (1,1,1,1)
-	  _WaveSpeeds ("4 Wave speeds", Vector) = (1,1,1,1)
-	  _WaveFreqs ("4 Wave frequencies", Vector) = (1,1,1,1)
+      _WaveDirections ("4 Wave Directions (range: 0 - 2*pi)", Vector) = (1,1,1,1)
+      _WaveAmplitudes ("4 Wave Amplitude (range: 0 - 1)", Vector) = (1,1,1,1)
+      _WaveAmplitudeMultiplier ("Amplitude multiplier (range: 0 - 4)", float) = 1.0
+      _WaveSpeeds ("4 Wave Speeds", Vector) = (1,1,1,1)
+      _WaveFreqs ("4 Wave Frequencies", Vector) = (1,1,1,1)
+
    }
    SubShader {
       Pass {	
@@ -36,8 +41,17 @@
          uniform float _Shininess;
 		 uniform float4 _WaveDirections;
 		 uniform float4 _WaveAmplitudes;
+         uniform float _WaveAmplitudeMultiplier;
 		 uniform float4 _WaveSpeeds;
 		 uniform float4 _WaveFreqs;
+
+		 uniform sampler2D _MainTex;
+		 uniform float4 _MainTex_ST;
+
+		 uniform sampler2D _BubbleTex;
+		 uniform float4 _BubbleTex_ST;
+		 uniform float _BubbleMinIntes;		
+		 uniform float _BubbleMaxIntes;
 
 		 uniform sampler2D _NormalMapA;	
          uniform float4 _NormalMapA_ST;
@@ -71,7 +85,12 @@
             vertexOutput output;
             
             output.posWorld = mul(_Object2World, input.vertex);
-            
+
+            // Clamp input values to avoid extreem values
+            _WaveDirections = fmod(_WaveDirections, 2*3.14159);
+            _WaveAmplitudes = clamp(_WaveAmplitudes, 0, 1);
+            _WaveAmplitudeMultiplier = clamp(_WaveAmplitudeMultiplier, 0, 4);
+                        
             float4 workaround_cos_waveAlternatorPredef = cos(_WaveDirections);
             float4 workaround_sin_waveAlternatorPredef = sin(_WaveDirections);
             float4x2 waveDirections = float4x2(workaround_cos_waveAlternatorPredef, workaround_sin_waveAlternatorPredef);
@@ -86,10 +105,10 @@
 			float4 waveTime = _Time.w * _WaveSpeeds;
 			float2 direction = normalize(float2(1,1));
 			
-			float4 heightVec = _WaveAmplitudes * sin(waveDirDotPos * _WaveFreqs + waveTime);
-			float4 dXVec = _WaveFreqs * waveDirectionsTranspose[0] * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
-			float4 dZVec = _WaveFreqs * waveDirectionsTranspose[1] * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
-			
+            float4 heightVec = _WaveAmplitudeMultiplier * _WaveAmplitudes * sin(waveDirDotPos * _WaveFreqs + waveTime);
+            float4 dXVec = _WaveFreqs * waveDirectionsTranspose[0] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+            float4 dZVec = _WaveFreqs * waveDirectionsTranspose[1] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+
 			float height = heightVec.x + heightVec.y + heightVec.z + heightVec.w;
 			float dX = dXVec.x + dXVec.y + dXVec.z + dXVec.w;
 			float dZ = dZVec.x + dZVec.y + dZVec.z + dZVec.w;
@@ -101,7 +120,8 @@
 			
 			output.normalDir = newNormal;
 			output.tangentDir = normalize(float3(0, dZ, 1));
-			output.binormalDir = normalize(float3(0, dX, 1));
+			output.binormalDir = normalize(float3(1, dX, 0));
+
 			
             output.tex = input.texcoord;
             
@@ -196,8 +216,13 @@
                   viewDirection)), _Shininess);
             }
 
+			float bubbleIntes = min(1.0,max( 0.0,(input.posWorld.y - _BubbleMinIntes) / (_BubbleMaxIntes - _BubbleMinIntes)));
+			float4 bubbleCol =tex2D(_BubbleTex, _BubbleTex_ST.xy * input.tex.xy + _BubbleTex_ST.zw ) * bubbleIntes;
+
+			float4 mainTexColor = tex2D(_MainTex, _MainTex_ST.xy * input.tex.xy + _MainTex_ST.zw );
+
             return float4(ambientLighting + diffuseReflection 
-               + specularReflection, 1.0);
+               + specularReflection, 1.0) + mainTexColor + bubbleCol;// * float4(ambientLighting + diffuseReflection, 1.0);
          }
  
          ENDCG
