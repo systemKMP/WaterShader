@@ -1,329 +1,243 @@
 ﻿Shader "Custom/Water" {
 	Properties {
-      _Color ("Diffuse Material Color", Color) = (1,1,1,1) 
-      _SpecColor ("Specular Material Color", Color) = (1,1,1,1) 
-      _Shininess ("Shininess", Float) = 10
-	  _MainTex ("Water texture", 2D) = "black" {}
-	  _BubbleTex ("Bubble texture", 2D) = "black" {}
-	  _BubbleMinIntes ("bubble min alt", float) = 1.0
-	  _BubbleMaxIntes ("bubble max alt", float) = 2.0
-	  _NormalMapA ("Normal map A", 2D) = "bump" {}
-	  _FlowSpeedA ("Flow Speed A", float) = 1.0
-	  _InvertSpeedA ("Invert Speed A", float) = 1.0
-	  _NormalMapB ("Normal map B", 2D) = "bump" {}
-	  _FlowSpeedB ("Flow Speed B", float) = 1.0
-      _WaveDirections ("4 Wave Directions (range: 0 - 2*pi)", Vector) = (1,1,1,1)
-      _WaveAmplitudes ("4 Wave Amplitude (range: 0 - 1)", Vector) = (1,1,1,1)
-      _WaveAmplitudeMultiplier ("Amplitude multiplier (range: 0 - 4)", float) = 1.0
-      _WaveSpeeds ("4 Wave Speeds", Vector) = (1,1,1,1)
-      _WaveFreqs ("4 Wave Frequencies", Vector) = (1,1,1,1)
-
-   }
-   SubShader {
-      Pass {	
-         Tags { "LightMode" = "ForwardBase" } 
-            // pass for ambient light and first light source
- 
-         CGPROGRAM
-// Upgrade NOTE: excluded shader from OpenGL ES 2.0 because it uses non-square matrices
-#pragma exclude_renderers gles
- 
-         #pragma vertex vert  
-         #pragma fragment frag 
- 
-         #include "UnityCG.cginc"
-         uniform float4 _LightColor0; 
-            // color of light source (from "Lighting.cginc")
- 
-         // User-specified properties
-         uniform float4 _Color; 
-         uniform float4 _SpecColor; 
-         uniform float _Shininess;
-		 uniform float4 _WaveDirections;
-		 uniform float4 _WaveAmplitudes;
-         uniform float _WaveAmplitudeMultiplier;
-		 uniform float4 _WaveSpeeds;
-		 uniform float4 _WaveFreqs;
-
-		 uniform sampler2D _MainTex;
-		 uniform float4 _MainTex_ST;
-
-		 uniform sampler2D _BubbleTex;
-		 uniform float4 _BubbleTex_ST;
-		 uniform float _BubbleMinIntes;		
-		 uniform float _BubbleMaxIntes;
-
-		 uniform sampler2D _NormalMapA;	
-         uniform float4 _NormalMapA_ST;
-		 uniform float _FlowSpeedA;
-		 uniform float _InvertSpeedA;
-
-		 uniform sampler2D _NormalMapB;	
-         uniform float4 _NormalMapB_ST;
-		 uniform float _FlowSpeedB;
-		 uniform float _InvertSpeedB;
-
- 
-         struct vertexInput {
-            float4 vertex : POSITION;
-			float4 texcoord : TEXCOORD0;
-            float3 normal : NORMAL;
-			float4 tangent : TANGENT;
-         };
-         struct vertexOutput {
-            float4 pos : SV_POSITION;
-            float4 posWorld : TEXCOORD0;
-			float4 tex : TEXCOORD1;
-            float3 normalDir : TEXCOORD2;
-			float3 tangentDir : TEXCOORD3;
-			float3 binormalDir : TEXCOORD4;
-
-         };
- 
-         vertexOutput vert(vertexInput input) 
-         {
-            vertexOutput output;
-            
-            output.posWorld = mul(_Object2World, input.vertex);
-
-            // Clamp input values to avoid extreem values
-            _WaveDirections = fmod(_WaveDirections, 2*3.14159);
-            _WaveAmplitudes = clamp(_WaveAmplitudes, 0, 1);
-            _WaveAmplitudeMultiplier = clamp(_WaveAmplitudeMultiplier, 0, 4);
-                        
-            float4 workaround_cos_waveAlternatorPredef = cos(_WaveDirections);
-            float4 workaround_sin_waveAlternatorPredef = sin(_WaveDirections);
-            float4x2 waveDirections = float4x2(workaround_cos_waveAlternatorPredef, workaround_sin_waveAlternatorPredef);
-            float2x4 waveDirectionsTranspose = transpose(waveDirections);
-            
-            float4 waveDirDotPos = float4(
-				dot(waveDirections[0], output.posWorld.xz),
-				dot(waveDirections[1], output.posWorld.xz),
-				dot(waveDirections[2], output.posWorld.xz),
-				dot(waveDirections[3], output.posWorld.xz));
+		_Color ("Diffuse Material Color", Color) = (1,1,1,1) 
+		_SpecColor ("Specular Material Color", Color) = (1,1,1,1) 
+		_Shininess ("Shininess", Float) = 10
+		_MainTex ("Water texture", 2D) = "black" {}
+		_BubbleTex ("Bubble texture", 2D) = "black" {}
+		_BubbleMinIntes ("bubble min alt", float) = 1.0
+		_BubbleMaxIntes ("bubble max alt", float) = 2.0
+		_NormalMapA ("Normal map A", 2D) = "bump" {}
+		_FlowSpeedA ("Flow Speed A", float) = 1.0
+		_InvertSpeedA ("Invert Speed A", float) = 1.0
+		_NormalMapB ("Normal map B", 2D) = "bump" {}
+		_FlowSpeedB ("Flow Speed B", float) = 1.0
+		_WaveDirections ("4 Wave Directions (range: 0 - 2*pi)", Vector) = (1,1,1,1)
+		_WaveAmplitudes ("4 Wave Amplitude (range: 0 - 1)", Vector) = (1,1,1,1)
+		_WaveAmplitudeMultiplier ("Amplitude multiplier (range: 0 - 4)", float) = 1.0
+		_WaveSpeeds ("4 Wave Speeds", Vector) = (1,1,1,1)
+		_WaveFreqs ("4 Wave Frequencies", Vector) = (1,1,1,1)
+	
+	}
+	SubShader {
+		Pass {	
+			Tags { "LightMode" = "ForwardBase" } 
+			// pass for ambient light and first light source
 			
-			float4 waveTime = _Time.w * _WaveSpeeds;
-			float2 direction = normalize(float2(1,1));
+			CGPROGRAM
+			// Upgrade NOTE: excluded shader from OpenGL ES 2.0 because it uses non-square matrices
+			#pragma exclude_renderers gles
 			
-            float4 heightVec = _WaveAmplitudeMultiplier * _WaveAmplitudes * sin(waveDirDotPos * _WaveFreqs + waveTime);
-            float4 dXVec = _WaveFreqs * waveDirectionsTranspose[0] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
-            float4 dZVec = _WaveFreqs * waveDirectionsTranspose[1] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
-
-			float height = heightVec.x + heightVec.y + heightVec.z + heightVec.w;
-			float dX = dXVec.x + dXVec.y + dXVec.z + dXVec.w;
-			float dZ = dZVec.x + dZVec.y + dZVec.z + dZVec.w;
+			#pragma vertex vert  
+			#pragma fragment frag 
 			
-			float3 newNormal = normalize(float3(-dX, 1, -dZ));
+			#include "UnityCG.cginc"
+			uniform float4 _LightColor0; 
+			// color of light source (from "Lighting.cginc")
 			
-			output.posWorld.y += height;
-			output.pos = mul(UNITY_MATRIX_MVP, mul(_World2Object, output.posWorld));
+			// User-specified properties
+			uniform float4 _Color; 
+			uniform float4 _SpecColor; 
+			uniform float _Shininess;
+			uniform float4 _WaveDirections;
+			uniform float4 _WaveAmplitudes;
+			uniform float _WaveAmplitudeMultiplier;
+			uniform float4 _WaveSpeeds;
+			uniform float4 _WaveFreqs;
 			
-			output.normalDir = newNormal;
-			output.tangentDir = normalize(float3(0, dZ, 1));
-			output.binormalDir = normalize(float3(1, dX, 0));
-
+			uniform sampler2D _MainTex;
+			uniform float4 _MainTex_ST;
 			
-            output.tex = input.texcoord;
-            
-            return output;
-         }
- 
-          float4 frag(vertexOutput input) : COLOR
-         {
-            // in principle we have to normalize tangentWorld,
-            // binormalWorld, and normalWorld again; however, the 
-            // potential problems are small since we use this 
-            // matrix only to compute "normalDirection", 
-            // which we normalize anyways
- 			
-            float4 encodedNormalA = tex2D(_NormalMapA, 
-               (_NormalMapA_ST.xy * input.tex.xy + _NormalMapA_ST.zw) +( float2(_Time.y, _Time.y)*_FlowSpeedA));
+			uniform sampler2D _BubbleTex;
+			uniform float4 _BubbleTex_ST;
+			uniform float _BubbleMinIntes;		
+			uniform float _BubbleMaxIntes;
+			
+			uniform sampler2D _NormalMapA;	
+			uniform float4 _NormalMapA_ST;
+			uniform float _FlowSpeedA;
+			uniform float _InvertSpeedA;
+			
+			uniform sampler2D _NormalMapB;	
+			uniform float4 _NormalMapB_ST;
+			uniform float _FlowSpeedB;
+			uniform float _InvertSpeedB;
+			
+			
+			struct vertexInput {
+				float4 vertex : POSITION;
+				float4 texcoord : TEXCOORD0;
+				float3 normal : NORMAL;
+				float4 tangent : TANGENT;
+			};
+			struct vertexOutput {
+				float4 pos : SV_POSITION;
+				float4 posWorld : TEXCOORD0;
+				float4 tex : TEXCOORD1;
+				float3 normalDir : TEXCOORD2;
+				float3 tangentDir : TEXCOORD3;
+				float3 binormalDir : TEXCOORD4;
+			};
+			
+			vertexOutput vert(vertexInput input) 
+			{
+				vertexOutput output;
+				
+				// World position of the vertex
+				output.posWorld = mul(_Object2World, input.vertex);
+				
+				// Clamp input values to avoid extreem values
+				_WaveDirections = fmod(_WaveDirections, 2*3.14159);
+				_WaveAmplitudes = clamp(_WaveAmplitudes, 0, 1);
+				_WaveAmplitudeMultiplier = clamp(_WaveAmplitudeMultiplier, 0, 4);
+				
+				// Calculate direction vectors for the 4 waves
+				float4 workaround_cos_waveAlternatorPredef = cos(_WaveDirections);
+				float4 workaround_sin_waveAlternatorPredef = sin(_WaveDirections);
+				float4x2 waveDirections = float4x2(workaround_cos_waveAlternatorPredef, workaround_sin_waveAlternatorPredef);
+				float2x4 waveDirectionsTranspose = transpose(waveDirections);
+				
+				// Dot product between each direction vector and the vertex's position vector
+				float4 waveDirDotPos = float4(
+					dot(waveDirections[0], output.posWorld.xz),
+					dot(waveDirections[1], output.posWorld.xz),
+					dot(waveDirections[2], output.posWorld.xz),
+					dot(waveDirections[3], output.posWorld.xz));
+				
+				// Where is the wave at the current point in time?...
+				float4 waveTime = _Time.w * _WaveSpeeds;
+				
+				// Calculate the height of each wave at the vertex's position at this point in time
+				// Formula: A_i * sin( dot(D_i, P) * w + t * S )
+				// A = amplitude  -  D = wave direction  -  P = vertex pos.(x,z)  -  w = frequency  -  t = time  -  S = speed  -  i = wave index
+				float4 heightVec = _WaveAmplitudeMultiplier * _WaveAmplitudes * sin(waveDirDotPos * _WaveFreqs + waveTime);
+				// Calculate the derivative of the height with respect to the x-pos and z-pos (used to find the normal, bi-normal, tangent of the wave at this vertex)
+				float4 dXVec = _WaveFreqs * waveDirectionsTranspose[0] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+				float4 dZVec = _WaveFreqs * waveDirectionsTranspose[1] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+				
+				// Sum of the heights and derivative coordinates
+				float height = heightVec.x + heightVec.y + heightVec.z + heightVec.w;
+				float dX = dXVec.x + dXVec.y + dXVec.z + dXVec.w;
+				float dZ = dZVec.x + dZVec.y + dZVec.z + dZVec.w;
+				
+				// The new normal of the vertex
+				float3 newNormal = normalize(float3(-dX, 1, -dZ));
+				
+				// Position of the vertex should now be shifted by the height calculated
+				output.posWorld.y += height;
+				output.pos = mul(UNITY_MATRIX_MVP, mul(_World2Object, output.posWorld));
+				
+				// Output the normals and tangent
+				output.normalDir = newNormal;
+				output.tangentDir = normalize(float3(0, dZ, 1));
+				output.binormalDir = normalize(float3(1, dX, 0));
+				
+				output.tex = input.texcoord;
+				
+				return output;
+			}
+			
+			float4 frag(vertexOutput input) : COLOR
+			{
+				// in principle we have to normalize tangentWorld,
+				// binormalWorld, and normalWorld again; however, the 
+				// potential problems are small since we use this 
+				// matrix only to compute "normalDirection", 
+				// which we normalize anyways
+				
+				float4 encodedNormalA = tex2D(_NormalMapA, 
+					(_NormalMapA_ST.xy * input.tex.xy + _NormalMapA_ST.zw) +( float2(_Time.y, _Time.y)*_FlowSpeedA));
+				
+				float4 encodedNormalB = tex2D(_NormalMapB, 
+					(_NormalMapB_ST.xy * input.tex.xy + _NormalMapB_ST.zw) +( float2(_Time.y, -_Time.y)*_FlowSpeedB));
+				
+				
+				
+				float3 localCoordsA = float3(2.0 * encodedNormalA.a - 1.0, 
+					2.0 * encodedNormalA.g - 1.0, 0.0);
+				
+				
+				float3 localCoordsB = float3(2.0 * encodedNormalB.a - 1.0, 
+					2.0 * encodedNormalB.g - 1.0, 0.0);
+			
+				//localCoords.x = 
+				//localCoords.y = cos(_Time.y * _InvertSpeedA) * localCoords.y;
+				
+				float3 localCoords = float3(0,0,0);
+				
+				localCoords.x = (localCoordsA.x + localCoordsB.x)/2;
+				localCoords.y = (localCoordsA.y + localCoordsB.y)/2;
+				
+				//localCoords.x = sin(_Time.y * _InvertSpeedA) * localCoordsA.x - sin(_Time.y * _InvertSpeedB) * localCoordsB.x;
+				//localCoords.y = sin(_Time.y * _InvertSpeedA) * localCoordsA.y - sin(_Time.y * _InvertSpeedB) * localCoordsB.y;
+				
+				localCoords.z = sqrt(1.0 - dot(localCoords, localCoords));
+				
+				
+				// approximation without sqrt:  localCoords.z = 
+				// 1.0 - 0.5 * dot(localCoords, localCoords);
+				
+				float3x3 local2WorldTranspose = float3x3(
+					input.tangentDir, 
+					input.binormalDir, 
+					input.normalDir);
+				float3 normalDirection = 
+					normalize(mul(localCoords, local2WorldTranspose));
+				
+				float3 viewDirection = normalize(
+					_WorldSpaceCameraPos - input.posWorld.xyz);
+				float3 lightDirection;
+				float attenuation;
+				
+				if (0.0 == _WorldSpaceLightPos0.w) // directional light?
+				{
+					attenuation = 1.0; // no attenuation
+					lightDirection = normalize(_WorldSpaceLightPos0.xyz);
+				} 
+				else // point or spot light
+				{
+					float3 vertexToLightSource = 
+						_WorldSpaceLightPos0.xyz - input.posWorld.xyz;
+					float distance = length(vertexToLightSource);
+					attenuation = 1.0 / distance; // linear attenuation 
+					lightDirection = normalize(vertexToLightSource);
+				}
+				
+				float3 ambientLighting = 
+					UNITY_LIGHTMODEL_AMBIENT.rgb * _Color.rgb;
+				
+				float3 diffuseReflection = 
+					attenuation * _LightColor0.rgb * _Color.rgb
+					* max(0.0, dot(normalDirection, lightDirection));
+				
+				float3 specularReflection;
+				if (dot(normalDirection, lightDirection) < 0.0) 
+					// light source on the wrong side?
+				{
+					specularReflection = float3(0.0, 0.0, 0.0); 
+					// no specular reflection
+				}
+				else // light source on the right side
+				{
+					specularReflection = attenuation * _LightColor0.rgb 
+						* _SpecColor.rgb * pow(max(0.0, dot(
+						reflect(-lightDirection, normalDirection), 
+						viewDirection)), _Shininess);
+				}
+				
+				float bubbleIntes = min(1.0,max( 0.0,(input.posWorld.y - _BubbleMinIntes) / (_BubbleMaxIntes - _BubbleMinIntes)));
+				float4 bubbleCol =tex2D(_BubbleTex, _BubbleTex_ST.xy * input.tex.xy + _BubbleTex_ST.zw ) * bubbleIntes;
+				
+				float4 mainTexColor = tex2D(_MainTex, _MainTex_ST.xy * input.tex.xy + _MainTex_ST.zw );
+				
+				return float4(ambientLighting + diffuseReflection 
+					+ specularReflection, 1.0) + mainTexColor + bubbleCol;// * float4(ambientLighting + diffuseReflection, 1.0);
+			}
 
-            float4 encodedNormalB = tex2D(_NormalMapB, 
-               (_NormalMapB_ST.xy * input.tex.xy + _NormalMapB_ST.zw) +( float2(_Time.y, -_Time.y)*_FlowSpeedB));
-
-
-
-            float3 localCoordsA = float3(2.0 * encodedNormalA.a - 1.0, 
-                2.0 * encodedNormalA.g - 1.0, 0.0);
-
-
-            float3 localCoordsB = float3(2.0 * encodedNormalB.a - 1.0, 
-                2.0 * encodedNormalB.g - 1.0, 0.0);
-
-			//localCoords.x = 
-			//localCoords.y = cos(_Time.y * _InvertSpeedA) * localCoords.y;
-
-			float3 localCoords = float3(0,0,0);
-
-			localCoords.x = (localCoordsA.x + localCoordsB.x)/2;
-			localCoords.y = (localCoordsA.y + localCoordsB.y)/2;
-
-			//localCoords.x = sin(_Time.y * _InvertSpeedA) * localCoordsA.x - sin(_Time.y * _InvertSpeedB) * localCoordsB.x;
-			//localCoords.y = sin(_Time.y * _InvertSpeedA) * localCoordsA.y - sin(_Time.y * _InvertSpeedB) * localCoordsB.y;
-
-            localCoords.z = sqrt(1.0 - dot(localCoords, localCoords));
-
-
-               // approximation without sqrt:  localCoords.z = 
-               // 1.0 - 0.5 * dot(localCoords, localCoords);
- 
-            float3x3 local2WorldTranspose = float3x3(
-               input.tangentDir, 
-               input.binormalDir, 
-               input.normalDir);
-            float3 normalDirection = 
-               normalize(mul(localCoords, local2WorldTranspose));
- 
-            float3 viewDirection = normalize(
-               _WorldSpaceCameraPos - input.posWorld.xyz);
-            float3 lightDirection;
-            float attenuation;
- 
-            if (0.0 == _WorldSpaceLightPos0.w) // directional light?
-            {
-               attenuation = 1.0; // no attenuation
-               lightDirection = normalize(_WorldSpaceLightPos0.xyz);
-            } 
-            else // point or spot light
-            {
-               float3 vertexToLightSource = 
-                  _WorldSpaceLightPos0.xyz - input.posWorld.xyz;
-               float distance = length(vertexToLightSource);
-               attenuation = 1.0 / distance; // linear attenuation 
-               lightDirection = normalize(vertexToLightSource);
-            }
- 
-            float3 ambientLighting = 
-               UNITY_LIGHTMODEL_AMBIENT.rgb * _Color.rgb;
- 
-            float3 diffuseReflection = 
-               attenuation * _LightColor0.rgb * _Color.rgb
-               * max(0.0, dot(normalDirection, lightDirection));
- 
-            float3 specularReflection;
-            if (dot(normalDirection, lightDirection) < 0.0) 
-               // light source on the wrong side?
-            {
-               specularReflection = float3(0.0, 0.0, 0.0); 
-                  // no specular reflection
-            }
-            else // light source on the right side
-            {
-               specularReflection = attenuation * _LightColor0.rgb 
-                  * _SpecColor.rgb * pow(max(0.0, dot(
-                  reflect(-lightDirection, normalDirection), 
-                  viewDirection)), _Shininess);
-            }
-
-			float bubbleIntes = min(1.0,max( 0.0,(input.posWorld.y - _BubbleMinIntes) / (_BubbleMaxIntes - _BubbleMinIntes)));
-			float4 bubbleCol =tex2D(_BubbleTex, _BubbleTex_ST.xy * input.tex.xy + _BubbleTex_ST.zw ) * bubbleIntes;
-
-			float4 mainTexColor = tex2D(_MainTex, _MainTex_ST.xy * input.tex.xy + _MainTex_ST.zw );
-
-            return float4(ambientLighting + diffuseReflection 
-               + specularReflection, 1.0) + mainTexColor + bubbleCol;// * float4(ambientLighting + diffuseReflection, 1.0);
-         }
- 
-         ENDCG
-      }
- 
-//      Pass {	
-//         Tags { "LightMode" = "ForwardAdd" } 
-//            // pass for additional light sources
-//         Blend One One // additive blending 
-// 
-//         CGPROGRAM
-// 
-//         #pragma vertex vert  
-//         #pragma fragment frag 
-// 
-//         #include "UnityCG.cginc"
-//         uniform float4 _LightColor0; 
-//            // color of light source (from "Lighting.cginc")
-// 
-//         // User-specified properties
-//         uniform float4 _Color; 
-//         uniform float4 _SpecColor; 
-//         uniform float _Shininess;
-// 
-//         struct vertexInput {
-//            float4 vertex : POSITION;
-//            float3 normal : NORMAL;
-//         };
-//         struct vertexOutput {
-//            float4 pos : SV_POSITION;
-//            float4 posWorld : TEXCOORD0;
-//            float3 normalDir : TEXCOORD1;
-//         };
-// 
-//         vertexOutput vert(vertexInput input) 
-//         {
-//            vertexOutput output;
-// 
-//            float4x4 modelMatrix = _Object2World;
-//            float4x4 modelMatrixInverse = _World2Object; 
-//               // multiplication with unity_Scale.w is unnecessary 
-//               // because we normalize transformed vectors
-// 
-//            output.posWorld = mul(modelMatrix, input.vertex);
-//            output.normalDir = normalize(
-//               mul(float4(input.normal, 0.0), modelMatrixInverse).xyz);
-//            output.pos = mul(UNITY_MATRIX_MVP, input.vertex);
-//            return output;
-//         }
-// 
-//         float4 frag(vertexOutput input) : COLOR
-//         {
-//            float3 normalDirection = normalize(input.normalDir);
-// 
-//            float3 viewDirection = normalize(
-//               _WorldSpaceCameraPos - input.posWorld.xyz);
-//            float3 lightDirection;
-//            float attenuation;
-// 
-//            if (0.0 == _WorldSpaceLightPos0.w) // directional light?
-//            {
-//               attenuation = 1.0; // no attenuation
-//               lightDirection = normalize(_WorldSpaceLightPos0.xyz);
-//            } 
-//            else // point or spot light
-//            {
-//               float3 vertexToLightSource = 
-//                  _WorldSpaceLightPos0.xyz - input.posWorld.xyz;
-//               float distance = length(vertexToLightSource);
-//               attenuation = 1.0 / distance; // linear attenuation 
-//               lightDirection = normalize(vertexToLightSource);
-//            }
-// 
-//            float3 diffuseReflection = 
-//               attenuation * _LightColor0.rgb * _Color.rgb
-//               * max(0.0, dot(normalDirection, lightDirection));
-// 
-//            float3 specularReflection;
-//            if (dot(normalDirection, lightDirection) < 0.0) 
-//               // light source on the wrong side?
-//            {
-//               specularReflection = float3(0.0, 0.0, 0.0); 
-//                  // no specular reflection
-//            }
-//            else // light source on the right side
-//            {
-//               specularReflection = attenuation * _LightColor0.rgb 
-//                  * _SpecColor.rgb * pow(max(0.0, dot(
-//                  reflect(-lightDirection, normalDirection), 
-//                  viewDirection)), _Shininess);
-//            }
-// 
-//            return float4(diffuseReflection 
-//               + specularReflection, 1.0);
-//               // no ambient lighting in this pass
-//         }
-// 
-//         ENDCG
-//      }
-   }
-   // The definition of a fallback shader should be commented out 
-   // during development:
-   // Fallback "Specular"
+			ENDCG
+		}
+	}
+	// The definition of a fallback shader should be commented out 
+	// during development:
+	// Fallback "Specular"
 }
