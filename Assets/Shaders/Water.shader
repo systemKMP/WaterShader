@@ -72,6 +72,7 @@
 			};
 			struct vertexOutput {
 				float4 pos : SV_POSITION;
+				float4 posLocal : TEXCOORD5;
 				float4 posWorld : TEXCOORD0;
 				float4 tex : TEXCOORD1;
 				float3 normalDir : TEXCOORD2;
@@ -92,11 +93,12 @@
 				_WaveAmplitudeMultiplier = clamp(_WaveAmplitudeMultiplier, 0, 4);
 				
 				// Calculate direction vectors for the 4 waves
-				float4 workaround_cos_waveAlternatorPredef = cos(_WaveDirections);
-				float4 workaround_sin_waveAlternatorPredef = sin(_WaveDirections);
-				float4x2 waveDirections = float4x2(workaround_cos_waveAlternatorPredef, workaround_sin_waveAlternatorPredef);
-				float2x4 waveDirectionsTranspose = transpose(waveDirections);
-				
+				float4 waveDirSin = cos(_WaveDirections);
+				float4 waveDirCos = sin(_WaveDirections);
+
+				float2x4 waveDirectionsInv = float2x4(waveDirCos, waveDirSin);
+				float4x2 waveDirections = transpose(waveDirectionsInv);
+
 				// Dot product between each direction vector and the vertex's position vector
 				float4 waveDirDotPos = float4(
 					dot(waveDirections[0], output.posWorld.xz),
@@ -112,27 +114,31 @@
 				// A = amplitude  -  D = wave direction  -  P = vertex pos.(x,z)  -  w = frequency  -  t = time  -  S = speed  -  i = wave index
 				float4 heightVec = _WaveAmplitudeMultiplier * _WaveAmplitudes * sin(waveDirDotPos * _WaveFreqs + waveTime);
 				// Calculate the derivative of the height with respect to the x-pos and z-pos (used to find the normal, bi-normal, tangent of the wave at this vertex)
-				float4 dXVec = _WaveFreqs * waveDirectionsTranspose[0] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
-				float4 dZVec = _WaveFreqs * waveDirectionsTranspose[1] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+				float4 dXVec = _WaveFreqs * waveDirectionsInv[0] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+				float4 dZVec = _WaveFreqs * waveDirectionsInv[1] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
 				
 				// Sum of the heights and derivative coordinates
 				float height = heightVec.x + heightVec.y + heightVec.z + heightVec.w;
 				float dX = dXVec.x + dXVec.y + dXVec.z + dXVec.w;
 				float dZ = dZVec.x + dZVec.y + dZVec.z + dZVec.w;
 				
-				// The new normal of the vertex
-				float3 newNormal = normalize(float3(-dX, 1, -dZ));
-				
 				// Position of the vertex should now be shifted by the height calculated
 				output.posWorld.y += height;
-				output.pos = mul(UNITY_MATRIX_MVP, mul(_World2Object, output.posWorld));
+
+
+				output.posLocal = mul(_World2Object, output.posWorld);
+				output.pos = mul(UNITY_MATRIX_MVP, output.posLocal);
+				
+				//output.pos = mul(UNITY_MATRIX_P, (UNITY_MATRIX_V, output.posWorld));
 				
 				// Output the normals and tangent
-				output.normalDir = newNormal;
+				output.normalDir = normalize(float3(-dX, 1, -dZ));
 				output.tangentDir = normalize(float3(0, dZ, 1));
 				output.binormalDir = normalize(float3(1, dX, 0));
 				
 				output.tex = input.texcoord;
+
+				
 				
 				return output;
 			}
@@ -144,39 +150,32 @@
 				// potential problems are small since we use this 
 				// matrix only to compute "normalDirection", 
 				// which we normalize anyways
-				
+
+
+				// We map the normal maps with the scale and offset. The unity_scale is used to make sure the normal maps are mapped accordingly no matter the objects scale
+
 				float4 encodedNormalA = tex2D(_NormalMapA, 
-					(_NormalMapA_ST.xy * input.tex.xy + _NormalMapA_ST.zw) +( float2(_Time.y, _Time.y)*_FlowSpeedA));
+					(_NormalMapA_ST.xy * input.tex.xy / unity_Scale.w + _NormalMapA_ST.zw) +( float2(_Time.y, _Time.y)*_FlowSpeedA));
 				
 				float4 encodedNormalB = tex2D(_NormalMapB, 
-					(_NormalMapB_ST.xy * input.tex.xy + _NormalMapB_ST.zw) +( float2(_Time.y, -_Time.y)*_FlowSpeedB));
-				
-				
+					(_NormalMapB_ST.xy * input.tex.xy / unity_Scale.w + _NormalMapB_ST.zw) +( float2(_Time.y, -_Time.y)*_FlowSpeedB));
 				
 				float3 localCoordsA = float3(2.0 * encodedNormalA.a - 1.0, 
 					2.0 * encodedNormalA.g - 1.0, 0.0);
 				
-				
 				float3 localCoordsB = float3(2.0 * encodedNormalB.a - 1.0, 
 					2.0 * encodedNormalB.g - 1.0, 0.0);
-			
-				//localCoords.x = 
-				//localCoords.y = cos(_Time.y * _InvertSpeedA) * localCoords.y;
 				
+				// Blending of normal maps
+
 				float3 localCoords = float3(0,0,0);
-				
 				localCoords.x = (localCoordsA.x + localCoordsB.x)/2;
 				localCoords.y = (localCoordsA.y + localCoordsB.y)/2;
-				
-				//localCoords.x = sin(_Time.y * _InvertSpeedA) * localCoordsA.x - sin(_Time.y * _InvertSpeedB) * localCoordsB.x;
-				//localCoords.y = sin(_Time.y * _InvertSpeedA) * localCoordsA.y - sin(_Time.y * _InvertSpeedB) * localCoordsB.y;
-				
+								
 				localCoords.z = sqrt(1.0 - dot(localCoords, localCoords));
 				
-				
-				// approximation without sqrt:  localCoords.z = 
-				// 1.0 - 0.5 * dot(localCoords, localCoords);
-				
+				// Normal direction with normal maps applied is calculated
+
 				float3x3 local2WorldTranspose = float3x3(
 					input.tangentDir, 
 					input.binormalDir, 
@@ -184,60 +183,53 @@
 				float3 normalDirection = 
 					normalize(mul(localCoords, local2WorldTranspose));
 				
-				float3 viewDirection = normalize(
-					_WorldSpaceCameraPos - input.posWorld.xyz);
-				float3 lightDirection;
-				float attenuation;
-				
-				if (0.0 == _WorldSpaceLightPos0.w) // directional light?
-				{
-					attenuation = 1.0; // no attenuation
-					lightDirection = normalize(_WorldSpaceLightPos0.xyz);
-				} 
-				else // point or spot light
-				{
-					float3 vertexToLightSource = 
-						_WorldSpaceLightPos0.xyz - input.posWorld.xyz;
-					float distance = length(vertexToLightSource);
-					attenuation = 1.0 / distance; // linear attenuation 
-					lightDirection = normalize(vertexToLightSource);
-				}
-				
+				//Calculate the direction from which the camera is viewing at the object
+
+				float3 viewDirection = normalize(_WorldSpaceCameraPos - input.posWorld.xyz);
+
+				float3 lightDirection = normalize(_WorldSpaceLightPos0.xyz);
+
+				//Calculate the light added by ambient and material color;
+
 				float3 ambientLighting = 
 					UNITY_LIGHTMODEL_AMBIENT.rgb * _Color.rgb;
 				
-				float3 diffuseReflection = 
-					attenuation * _LightColor0.rgb * _Color.rgb
+				//Calculate the diffuse color with its intensity
+
+				float3 diffuseReflection = _LightColor0.rgb * _Color.rgb
 					* max(0.0, dot(normalDirection, lightDirection));
 				
+				//Calculate the specular color with its intensity
+
 				float3 specularReflection;
 				if (dot(normalDirection, lightDirection) < 0.0) 
-					// light source on the wrong side?
 				{
 					specularReflection = float3(0.0, 0.0, 0.0); 
-					// no specular reflection
 				}
-				else // light source on the right side
+				else
 				{
-					specularReflection = attenuation * _LightColor0.rgb 
+					specularReflection = _LightColor0.rgb 
 						* _SpecColor.rgb * pow(max(0.0, dot(
 						reflect(-lightDirection, normalDirection), 
 						viewDirection)), _Shininess);
 				}
 				
-				float bubbleIntes = min(1.0,max( 0.0,(input.posWorld.y - _BubbleMinIntes) / (_BubbleMaxIntes - _BubbleMinIntes)));
-				float4 bubbleCol =tex2D(_BubbleTex, _BubbleTex_ST.xy * input.tex.xy + _BubbleTex_ST.zw ) * bubbleIntes;
+				//Add bubble texture with the intensity dependant on local positions y axis
+
+				float bubbleIntes = min(1.0,max( 0.0,(input.posLocal.y - _BubbleMinIntes) / (_BubbleMaxIntes - _BubbleMinIntes)));
+
+				float4 bubbleCol = tex2D(_BubbleTex, _BubbleTex_ST.xy * input.tex.xy / unity_Scale.w + _BubbleTex_ST.zw) * bubbleIntes;
 				
-				float4 mainTexColor = tex2D(_MainTex, _MainTex_ST.xy * input.tex.xy + _MainTex_ST.zw );
+				float4 mainTexColor = tex2D(_MainTex, _MainTex_ST.xy * input.tex.xy / unity_Scale.w + _MainTex_ST.zw);
 				
+				//Final color calculation
+
 				return float4(ambientLighting + diffuseReflection 
-					+ specularReflection, 1.0) + mainTexColor + bubbleCol;// * float4(ambientLighting + diffuseReflection, 1.0);
+					+ specularReflection, 1.0) + mainTexColor + bubbleCol;
 			}
 
 			ENDCG
 		}
 	}
-	// The definition of a fallback shader should be commented out 
-	// during development:
-	// Fallback "Specular"
+	Fallback "Specular"
 }
