@@ -1,4 +1,4 @@
-﻿Shader "Custom/Water" {
+﻿	Shader "Custom/Water" {
 	Properties {
 		_Color ("Diffuse Material Color", Color) = (1,1,1,1) 
 		_SpecColor ("Specular Material Color", Color) = (1,1,1,1) 
@@ -9,7 +9,6 @@
 		_BubbleMaxIntes ("bubble max alt", float) = 2.0
 		_NormalMapA ("Normal map A", 2D) = "bump" {}
 		_FlowSpeedA ("Flow Speed A", float) = 1.0
-		_InvertSpeedA ("Invert Speed A", float) = 1.0
 		_NormalMapB ("Normal map B", 2D) = "bump" {}
 		_FlowSpeedB ("Flow Speed B", float) = 1.0
 		_WaveDirections ("4 Wave Directions (range: 0 - 2*pi)", Vector) = (1,1,1,1)
@@ -17,12 +16,10 @@
 		_WaveAmplitudeMultiplier ("Amplitude multiplier (range: 0 - 4)", float) = 1.0
 		_WaveSpeeds ("4 Wave Speeds", Vector) = (1,1,1,1)
 		_WaveFreqs ("4 Wave Frequencies", Vector) = (1,1,1,1)
-	
 	}
 	SubShader {
 		Pass {	
 			Tags { "LightMode" = "ForwardBase" } 
-			// pass for ambient light and first light source
 			
 			CGPROGRAM
 			// Upgrade NOTE: excluded shader from OpenGL ES 2.0 because it uses non-square matrices
@@ -31,11 +28,8 @@
 			#pragma vertex vert  
 			#pragma fragment frag 
 			
-			#include "UnityCG.cginc"
 			uniform float4 _LightColor0; 
-			// color of light source (from "Lighting.cginc")
 			
-			// User-specified properties
 			uniform float4 _Color; 
 			uniform float4 _SpecColor; 
 			uniform float _Shininess;
@@ -56,12 +50,10 @@
 			uniform sampler2D _NormalMapA;	
 			uniform float4 _NormalMapA_ST;
 			uniform float _FlowSpeedA;
-			uniform float _InvertSpeedA;
 			
 			uniform sampler2D _NormalMapB;	
 			uniform float4 _NormalMapB_ST;
 			uniform float _FlowSpeedB;
-			uniform float _InvertSpeedB;
 			
 			
 			struct vertexInput {
@@ -85,6 +77,8 @@
 				vertexOutput output;
 				
 				// World position of the vertex
+
+
 				output.posWorld = mul(_Object2World, input.vertex);
 				
 				// Clamp input values to avoid extreem values
@@ -114,8 +108,11 @@
 				// A = amplitude  -  D = wave direction  -  P = vertex pos.(x,z)  -  w = frequency  -  t = time  -  S = speed  -  i = wave index
 				float4 heightVec = _WaveAmplitudeMultiplier * _WaveAmplitudes * sin(waveDirDotPos * _WaveFreqs + waveTime);
 				// Calculate the derivative of the height with respect to the x-pos and z-pos (used to find the normal, bi-normal, tangent of the wave at this vertex)
-				float4 dXVec = _WaveFreqs * waveDirectionsInv[0] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
-				float4 dZVec = _WaveFreqs * waveDirectionsInv[1] * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+				
+				float4 initCalc = _WaveFreqs  * _WaveAmplitudeMultiplier * _WaveAmplitudes * cos(waveDirDotPos * _WaveFreqs + waveTime);
+
+				float4 dXVec =  waveDirectionsInv[0] * initCalc;
+				float4 dZVec = waveDirectionsInv[1] * initCalc;
 				
 				// Sum of the heights and derivative coordinates
 				float height = heightVec.x + heightVec.y + heightVec.z + heightVec.w;
@@ -125,9 +122,8 @@
 				// Position of the vertex should now be shifted by the height calculated
 				output.posWorld.y += height;
 
-
 				output.posLocal = mul(_World2Object, output.posWorld);
-				output.pos = mul(UNITY_MATRIX_MVP, output.posLocal);
+				output.pos = mul(UNITY_MATRIX_VP, output.posWorld);
 				
 				//output.pos = mul(UNITY_MATRIX_P, (UNITY_MATRIX_V, output.posWorld));
 				
@@ -145,13 +141,6 @@
 			
 			float4 frag(vertexOutput input) : COLOR
 			{
-				// in principle we have to normalize tangentWorld,
-				// binormalWorld, and normalWorld again; however, the 
-				// potential problems are small since we use this 
-				// matrix only to compute "normalDirection", 
-				// which we normalize anyways
-
-
 				// We map the normal maps with the scale and offset. The unity_scale is used to make sure the normal maps are mapped accordingly no matter the objects scale
 
 				float4 encodedNormalA = tex2D(_NormalMapA, 
